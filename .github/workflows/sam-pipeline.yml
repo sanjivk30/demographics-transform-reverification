@@ -17,7 +17,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - run: sam init -r python3.8 -n demographics-transform-reverification --app-template "hello-world"
       # sam build 
       - run: sam build --use-container
 
