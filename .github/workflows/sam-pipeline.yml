@@ -20,5 +20,4 @@ jobs:
       # sam build 
       - run: sam build --use-container
       # sam deploy
-      - run: yes | sam delete --stack-name aws-sam-cli-managed-default
       - run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --s3-bucket $AWS_S3_BUCKET --stack-name sam-hello-world --capabilities CAPABILITY_IAM --region $AWS_REGION
