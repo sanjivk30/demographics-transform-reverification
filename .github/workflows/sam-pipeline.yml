@@ -2,6 +2,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 env:
   AWS_REGION: us-east-1
   FUNCTION_NAME: nhs_reverification_hello_world
