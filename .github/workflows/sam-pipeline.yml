@@ -20,7 +20,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: deploy
+      - name: Deploy function
         run: |
-          zip -j deploy.zip ./* #--> Zip the Code As we know lambda function accept the zip file.
+          zip -j deploy.zip ./hello_world/* #--> Zip the Code As we know lambda function accept the zip file.
           aws lambda update-function-code --function-name=nhs_reverification_hello_world --zip-file=fileb://deploy.zip --region $AWS_REGION
