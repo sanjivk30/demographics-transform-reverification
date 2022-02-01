@@ -20,5 +20,5 @@ jobs:
       # sam build 
       - run: sam build --use-container
       # sam deploy
-      - run: aws s3 mb s3://$AWS_S3_BUCKET
+      - run: sam delete --stack-name aws-sam-cli-managed-default
       - run: sam deploy --s3-bucket $AWS_S3_BUCKET --stack-name sam-hello-world --capabilities CAPABILITY_IAM --region $AWS_REGION
