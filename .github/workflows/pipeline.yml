@@ -7,8 +7,6 @@ on:
       - main
 env:
   AWS_REGION: us-east-1
-  HELLO_WORLD: nhs_reverification_hello_world
-  NOTIFY_SERVICE: nhs_reverification_notify
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
@@ -36,5 +34,5 @@ jobs:
           cd ./${{ matrix.function-name }}/package
           zip -r ../deploy.zip .
           cd ..
-          zip -g deploy.zip lambda_function.py
+          zip -g deploy.zip *.py
           aws lambda update-function-code --function-name=${{ matrix.function-name }} --zip-file=fileb://deploy.zip --region $AWS_REGION
