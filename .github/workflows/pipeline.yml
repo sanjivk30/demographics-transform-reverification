@@ -7,7 +7,8 @@ on:
       - main
 env:
   AWS_REGION: us-east-1
-  FUNCTION_NAME: nhs_reverification_hello_world
+  HELLO_WORLD: nhs_reverification_hello_world
+  NOTIFY_SERVICE: nhs_reverification_notify
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
@@ -17,7 +18,7 @@ jobs:
       - name: Set up a Python environment for use in actions
         uses: actions/setup-python@v2
         with:
-          python-version: "3.9"
+          python-version: "3.8"
           cache: "pip"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -25,12 +26,21 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Deploy function with dependencies
+      - name: Deploy Hello World function with dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -t ./$FUNCTION_NAME/package -r ./$FUNCTION_NAME/requirements.txt
-          cd ./$FUNCTION_NAME/package
+          pip install -t ./$HELLO_WORLD/package -r ./$HELLO_WORLD/requirements.txt
+          cd ./$HELLO_WORLD/package
           zip -r ../deploy.zip .
           cd ..
           zip -g deploy.zip lambda_function.py
-          aws lambda update-function-code --function-name=$FUNCTION_NAME --zip-file=fileb://deploy.zip --region $AWS_REGION
+          aws lambda update-function-code --function-name=$HELLO_WORLD --zip-file=fileb://deploy.zip --region $AWS_REGION
+      - name: Deploy nhs-reverification-notify function with dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -t ./$NOTIFY_SERVICE/package -r ./$NOTIFY_SERVICE/requirements.txt
+          cd ./$NOTIFY_SERVICE/package
+          zip -r ../deploy.zip .
+          cd ..
+          zip -g deploy.zip lambda_function.py
+          aws lambda update-function-code --function-name=$NOTIFY_SERVICE --zip-file=fileb://deploy.zip --region $AWS_REGION
