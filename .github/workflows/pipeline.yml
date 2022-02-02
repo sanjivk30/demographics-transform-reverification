@@ -25,11 +25,9 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Install Python dependencies
+      - name: Deploy function with dependencies
         run: |
-          mkdir ./nhs_reverification_hello_world/package
-          pip install -t ./nhs_reverification_hello_world/package -r ./nhs_reverification_hello_world/requirements.txt
-      - name: Deploy function
-        run: |
+          mkdir ./$FUNCTION_NAME/package
+          pip install -t ./$FUNCTION_NAME/package -r ./$FUNCTION_NAME/requirements.txt
           zip -j deploy.zip ./$FUNCTION_NAME/* #--> Zip the Code As we know lambda function accept the zip file.
           aws lambda update-function-code --function-name=$FUNCTION_NAME --zip-file=fileb://deploy.zip --region $AWS_REGION
