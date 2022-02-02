@@ -27,7 +27,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Deploy function with dependencies
         run: |
-          mkdir ./$FUNCTION_NAME/package
+          python -m pip install --upgrade pip
           pip install -t ./$FUNCTION_NAME/package -r ./$FUNCTION_NAME/requirements.txt
-          zip -j deploy.zip ./$FUNCTION_NAME/* #--> Zip the Code As we know lambda function accept the zip file.
+          zip deploy.zip ./$FUNCTION_NAME/*
           aws lambda update-function-code --function-name=$FUNCTION_NAME --zip-file=fileb://deploy.zip --region $AWS_REGION
