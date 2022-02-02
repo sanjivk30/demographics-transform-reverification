@@ -18,12 +18,15 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: "3.9"
+          cache: "pip"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Install Python dependencies
+        run: pip install -r ./$FUNCTION_NAME/requirements.txt
       - name: Deploy function
         run: |
           zip -j deploy.zip ./$FUNCTION_NAME/* #--> Zip the Code As we know lambda function accept the zip file.
