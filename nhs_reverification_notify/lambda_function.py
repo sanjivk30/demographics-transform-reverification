@@ -12,7 +12,7 @@ db_password = "testpassword"
 db_name = "cohort_db"
 
 # Database connection
-db_connection = pymysql.connect(db_endpoint, user=db_username, passwd=db_password, db=db_name)
+db_connection = pymysql.connect(db_endpoint, user=db_username, password=db_password, database=db_name)
 
 def lambda_handler(event, context):
     cursor = db_connection.cursor()
