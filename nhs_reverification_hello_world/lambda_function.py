@@ -1,4 +1,5 @@
 import json
+import jwt
 
 def lambda_handler(event, context):
     return {
