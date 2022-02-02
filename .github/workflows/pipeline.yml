@@ -27,7 +27,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
+          mkdir ./$FUNCTION_NAME/package
           pip install -t ./$FUNCTION_NAME/package -r ./$FUNCTION_NAME/requirements.txt
       - name: Deploy function
         run: |
