@@ -28,7 +28,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./$FUNCTION_NAME/requirements.txt
+          pip install -r ./$FUNCTION_NAME/requirements.txt --target ./$FUNCTION_NAME/package
       - name: Deploy function
         run: |
           zip -j deploy.zip ./$FUNCTION_NAME/* #--> Zip the Code As we know lambda function accept the zip file.
