@@ -11,7 +11,7 @@ db_username = "admin"
 db_password = "testpassword"
 db_name = "cohort_db"
 
-# Database connection
+# Database connection 
 db_connection = pymysql.connect(host=db_endpoint, user=db_username, password=db_password, database=db_name)
 
 def lambda_handler(event, context):
