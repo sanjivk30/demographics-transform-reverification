@@ -19,6 +19,9 @@ template_IDs = {
 sms_sender_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"
 # email_reply_to_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"  # Not including reply emails
 
+# Maximum number of notification sending attempts in case of failure
+max_send_attempts = 3
+
 # Database config values
 db_endpoint = "cohort-test.c8qpdaxefdlf.us-east-1.rds.amazonaws.com"
 db_username = "admin"
@@ -80,15 +83,25 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
 
     # Make sure a message type has been decided, then POST the request to the Gov.UK Notify API and print the response
     if len(msgType) > 0:
-        response = requests.post(api_base_url + msgType, data=json.dumps(body), headers=headers)
-        print(response.content)
-        response_dict = json.loads(response.content)
-        
-        # Update Notifications table
-        notificationID = response_dict['id']
-        notifyStatus = "created"
-        notifyTimestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp)
+        send_attempts = 0
+        response_code = 500
+        while response_code == 500 and send_attempts < max_send_attempts:
+            response = requests.post(api_base_url + msgType, data=json.dumps(body), headers=headers)
+            print(response.content)
+            response_dict = json.loads(response.content)
+            response_code = response.status_code
+            send_attempts += 1
+
+        # Update Notifications table if request is successful
+        if response_code == 201:
+            notificationID = response_dict['id']
+            notifyStatus = "created"
+            notifyTimestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp)
+        else:
+            print("LOGGER - LOG response_code and response.content:")
+            print(f"status_code: {response_code}\nMessage: {response.content}")
+
     # If the flag ID is invalid, it needs to be checked from the start to debug, instead of sending an invalid request
     else:
         print("Something went wrong and flag_id is invalid. Please check and try again.")
