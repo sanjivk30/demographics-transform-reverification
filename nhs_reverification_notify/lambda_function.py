@@ -4,6 +4,20 @@ import requests, time, json, jwt, pymysql, datetime
 api_base_url = 'https://api.notifications.service.gov.uk'
 sms_extension = '/v2/notifications/sms'
 email_extension = '/v2/notifications/email'
+# API Key follows the format {key_name}-{iss}-{secret_key}
+# key_name = 'nhs_reverification_service'  # Not needed
+iss = '7ebefa63-8038-44d5-aca9-650a1e803f8f'
+secret_key = '6929b4db-906b-4dd5-bfcf-a2ddb7d36357'
+# Template ID from Gov.UK Notify for each flag's unique formatting
+template_IDs = {
+    0: "3fedbadf-b419-4834-bfbc-2e9082477a99",
+    1: "de3f9885-af6e-4392-ae60-f543806e6d85",
+    2: "20bea17e-562c-4e53-91da-62c99530ae68",
+    3: "a24c58cc-f31c-448a-aee9-01ded9e0d552"
+}
+# Get the ID for sender's info for when sending a message from Gov.UK Notify settings page
+sms_sender_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"
+# email_reply_to_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"  # Not including reply emails
 
 # Database config values
 db_endpoint = "cohort-test.c8qpdaxefdlf.us-east-1.rds.amazonaws.com"
@@ -37,41 +51,16 @@ def lambda_handler(event, context):
         row_dict = dict(zip(columns, row))
         send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
 
+
 def send_notification(patient_ID, first_name, last_name, mobile_num, email_address, flag_id):
     
-    # Get the template ID from Gov.UK Notify for each flag's unique formatting
-    if flag_id == 0:
-        template = "bf6b76e1-05a9-40bd-bcb2-b59c0a959c0c"
-    elif flag_id == 1:
-        template = "bf6b76e1-05a9-40bd-bcb2-b59c0a959c0c"
-    elif flag_id == 2:
-        template = "bf6b76e1-05a9-40bd-bcb2-b59c0a959c0c"
-    elif flag_id == 3:
-        template = "bf6b76e1-05a9-40bd-bcb2-b59c0a959c0c"
+    # Select the correct template ID based on the flag ID
+    if flag_id in template_IDs:
+        template = template_IDs[flag_id]
 
-
-    # API Key follows the format {key_name}-{iss}-{secret_key}
-    key_name = 'reverification_poc'
-    iss = '06123232-1c58-42c6-82f8-956834491b85'
-    secret_key = 'c3cba708-94ea-46f7-96f6-514f8c571dac'
-
-    # Get the ID for sender's info for when sending a message from Gov.UK Notify settings page
-    sms_sender_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"
-    email_reply_to_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"
 
     # JSON specific headers set-up
-    payload = {
-        'iss': iss,
-        'iat': time.time()
-    }
-    # JSON Web Token Encoding
-    auth = jwt.encode(payload, secret_key, algorithm='HS256')
-    headers = {
-        'typ': 'JWT',
-        'alg': 'HS256',
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + auth
-    }
+    headers = get_json_headers()
 
     # Personalisation changes variables within created templates
     personalisation = {
@@ -79,35 +68,8 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
         "Family_name": last_name,
     }
 
-    # Use a specific body of information for each flag ID
-    if flag_id == 0:
-        body = {
-        'phone_number': mobile_num,
-        'template_id': template,
-        'personalisation': personalisation,
-        "sms_sender_id": sms_sender_id
-        }
-    elif flag_id == 1:
-        body = {
-        'email_address': email_address,
-        'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS Record: Add your mobile number"}),
-        "email_reply_to_id": email_reply_to_id
-        }
-    elif flag_id == 2:
-        body = {
-        'phone_number': mobile_num,
-        'template_id': template,
-        'personalisation': personalisation,
-        "sms_sender_id": sms_sender_id
-        }
-    elif flag_id == 3:
-        body = {
-        'email_address': email_address,
-        'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS: Check your mobile number"}),
-        "email_reply_to_id": email_reply_to_id
-        }
+    # JSON body set-up using given information
+    body = get_json_body(flag_id, template, personalisation, mobile_num, email_address)
 
     # Decide on the message type being email or sms, based on the flag ID
     msgType = ""
@@ -121,16 +83,65 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
         response = requests.post(api_base_url + msgType, data=json.dumps(body), headers=headers)
         print(response.content)
         response_dict = json.loads(response.content)
+        
+        # Update Notifications table
+        notificationID = response_dict['id']
+        notifyStatus = "created"
+        notifyTimestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp)
     # If the flag ID is invalid, it needs to be checked from the start to debug, instead of sending an invalid request
     else:
         print("Something went wrong and flag_id is invalid. Please check and try again.")
 
 
-    # Update Notifications table
-    notificationID = response_dict['id']
-    notifyStatus = "created"
-    notifyTimestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp)
+def get_json_headers():
+    payload = {
+        'iss': iss,
+        'iat': time.time()
+    }
+    # JSON Web Token Encoding
+    auth = jwt.encode(payload, secret_key, algorithm='HS256')
+    headers = {
+        'typ': 'JWT',
+        'alg': 'HS256',
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + auth
+    }
+    return headers
+
+
+def get_json_body(flag_id, template, personalisation, mobile_num, email_address):
+    # Use a specific body of information for each flag ID
+    if flag_id == 0:
+        body = {
+        'phone_number': mobile_num,
+        'template_id': template,
+        'personalisation': personalisation,
+        "sms_sender_id": sms_sender_id
+        }
+    elif flag_id == 1:
+        body = {
+        'email_address': email_address,
+        'template_id': template,
+        'personalisation': personalisation.update({"subject": "NHS Record: Add your mobile number"}),
+        # "email_reply_to_id": email_reply_to_id
+        }
+    elif flag_id == 2:
+        body = {
+        'phone_number': mobile_num,
+        'template_id': template,
+        'personalisation': personalisation,
+        "sms_sender_id": sms_sender_id
+        }
+    elif flag_id == 3:
+        body = {
+        'email_address': email_address,
+        'template_id': template,
+        'personalisation': personalisation.update({"subject": "NHS: Check your mobile number"}),
+        # "email_reply_to_id": email_reply_to_id
+        }
+    return body
+
 
 def update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp):
     cursor = db_connection.cursor()
