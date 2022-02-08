@@ -87,7 +87,7 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
     # Personalisation changes variables within created templates
     personalisation = {
         "first_name": first_name,
-        "Family_name": last_name,
+        "last_name": last_name,
     }
 
     # JSON body set-up using given information
