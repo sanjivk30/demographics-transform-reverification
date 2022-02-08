@@ -9,6 +9,8 @@ on:
         description: 'Log level'     
         required: true
         default: 'warning'
+env:
+  AWS_REGION: us-east-1
 jobs:
   terraform:
     name: Terraform Setup
