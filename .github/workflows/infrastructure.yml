@@ -1,4 +1,7 @@
 name: Deploy Infrastructure
+defaults:
+  run:
+    working-directory: ./terraform
 on:
   workflow_dispatch:
     inputs:
@@ -22,7 +25,7 @@ jobs:
       run: terraform init
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TF_ACTION_WORKING_DIR: './terraform'
+        TF_ACTION_WORKING_DIR: '.'
         AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     - name: Terraform Validate
@@ -32,6 +35,6 @@ jobs:
       run: terraform apply -auto-approve
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TF_ACTION_WORKING_DIR: './terraform'
+        TF_ACTION_WORKING_DIR: '.'
         AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
