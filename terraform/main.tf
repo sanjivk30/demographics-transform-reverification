@@ -7,7 +7,6 @@ provider "aws" {
 # Main VPC
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc
 resource "aws_vpc" "main" {
-  id         = "vpc-0eaf7767610e64ae7"
   cidr_block = "10.0.0.0/18"
 
   tags = {
