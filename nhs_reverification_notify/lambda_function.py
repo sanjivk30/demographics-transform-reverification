@@ -21,6 +21,8 @@ sms_sender_id = "9792f0d6-6cd5-4c3b-b1c1-2c75c7c8e1c2"
 
 # Maximum number of notification sending attempts in case of failure
 max_send_attempts = 3
+# Set the minimum grace period wait time between sent notifications to the same patient
+notification_grace_period = datetime.timedelta(days=7)
 
 # Database config values
 db_endpoint = "cohort-test.c8qpdaxefdlf.us-east-1.rds.amazonaws.com"
@@ -42,17 +44,34 @@ def lambda_handler(event, context):
     table = [fmt.format(*row) for row in s]
     print('\n'.join(table))
 
-    # Make MySQL request to fetch all rows with required columns
-    cursor = db_connection.cursor()
-    cursor.execute("SELECT patient_ID, first_name, family_name, mobilePhone, emailAddress, flag_ID FROM Patients")
-    rows = cursor.fetchall()
+    # Make MySQL request to fetch all rows from Patients table with required columns
+    Patients_cursor = db_connection.cursor()
+    Patients_cursor.execute("SELECT patient_ID, first_name, family_name, mobilePhone, emailAddress, flag_ID FROM Patients")
+    Patients_rows = Patients_cursor.fetchall()
     # Get column headers for dictionary use
-    columns = [column[0] for column in cursor.description]
+    Patients_columns = [column[0] for column in Patients_cursor.description]
+
+    # Make MySQL request to fetch all rows from Notifications table with required columns
+    Notifications_cursor = db_connection.cursor()
+    Notifications_cursor.execute("SELECT notification_ID, patient_ID, notification_status, time_stamp FROM Notifications")
+    Notifications_rows = Notifications_cursor.fetchall()
+    # Get column headers for dictionary use
+    Notifications_columns = [column[0] for column in Notifications_cursor.description]
+    # Make a list of patient_IDs from the Notifications table that shouldn't be notified
+    notified_patient_IDs = []
+    for Notifications_row in Notifications_rows:
+        # Use column dictionaries as easy identifiers
+        row_dict = dict(zip(Notifications_columns, Notifications_row))
+        # Make sure the current time is past the grace period for the notification before adding to the list
+        notification_timestamp = datetime.datetime.strptime(row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
+        if datetime.datetime.now() > notification_timestamp + notification_grace_period:
+            notified_patient_IDs.append(row_dict["patient_ID"])
 
     # Send notification one at a time to each patient, using column dictionaries as easy identifiers
-    for row in rows:
-        row_dict = dict(zip(columns, row))
-        send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
+    for Patients_row in Patients_rows:
+        row_dict = dict(zip(Patients_columns, Patients_row))
+        if row_dict["patient_ID"] not in notified_patient_IDs:
+            send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
 
 
 def send_notification(patient_ID, first_name, last_name, mobile_num, email_address, flag_id):
