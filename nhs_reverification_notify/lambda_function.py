@@ -16,7 +16,7 @@ template_IDs = {
     3: "a24c58cc-f31c-448a-aee9-01ded9e0d552"
 }
 # Get the ID for sender's info for when sending a message from Gov.UK Notify settings page
-sms_sender_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"
+sms_sender_id = "9792f0d6-6cd5-4c3b-b1c1-2c75c7c8e1c2"
 # email_reply_to_id = "8e222534-7f05-4972-86e3-17c5d9f894e2"  # Not including reply emails
 
 # Maximum number of notification sending attempts in case of failure
