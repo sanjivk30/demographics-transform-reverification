@@ -152,10 +152,11 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
         "sms_sender_id": sms_sender_id
         }
     elif flag_id == 1:
+        personalisation.update({"subject": "NHS Record: Add your mobile number"})
         body = {
         'email_address': email_address,
         'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS Record: Add your mobile number"}),
+        'personalisation': personalisation,
         # "email_reply_to_id": email_reply_to_id
         }
     elif flag_id == 2:
@@ -166,10 +167,11 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
         "sms_sender_id": sms_sender_id
         }
     elif flag_id == 3:
+        personalisation.update({"subject": "NHS: Check your mobile number"})
         body = {
         'email_address': email_address,
         'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS: Check your mobile number"}),
+        'personalisation': personalisation,
         # "email_reply_to_id": email_reply_to_id
         }
     return body
