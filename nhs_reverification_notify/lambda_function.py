@@ -179,8 +179,10 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
 
 def update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp):
     cursor = db_connection.cursor()
-    cursor.execute(f"""INSERT INTO Notifications (notification_ID, patient_ID, notification_status, time_stamp) VALUES
-                       ('{notificationID}', {patient_ID}, '{notifyStatus}', '{notifyTimestamp}')""")
+    insert_sql = "INSERT INTO Notifications (notification_ID, patient_ID, notification_status, time_stamp) VALUES (%s, %s, %s, %s)"
+    insert_values = (notificationID, patient_ID, notifyStatus, notifyTimestamp)
+    cursor.execute(insert_sql, insert_values)
+    db_connection.commit()
 
 
 
