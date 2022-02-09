@@ -34,16 +34,6 @@ db_name = "cohort_db"
 db_connection = pymysql.connect(host=db_endpoint, user=db_username, password=db_password, database=db_name)
 
 def lambda_handler(event, context):
-    # MySQL testing - pretty print all rows in table
-    cursor = db_connection.cursor()
-    cursor.execute("SELECT * FROM Patients")
-    rows = cursor.fetchall()
-    s = [[str(e) for e in row] for row in rows]
-    lens = [max(map(len, col)) for col in zip(*s)]
-    fmt = '\t'.join('{{:{}}}'.format(x) for x in lens)
-    table = [fmt.format(*row) for row in s]
-    print('\n'.join(table))
-
     # Make MySQL request to fetch all rows from Patients table with required columns
     Patients_cursor = db_connection.cursor()
     Patients_cursor.execute("SELECT patient_ID, first_name, family_name, mobilePhone, emailAddress, flag_ID FROM Patients")
@@ -58,19 +48,19 @@ def lambda_handler(event, context):
     # Get column headers for dictionary use
     Notifications_columns = [column[0] for column in Notifications_cursor.description]
     # Make a list of patient_IDs from the Notifications table that shouldn't be notified
-    notified_patient_IDs = []
+    exempt_patient_IDs = []
     for Notifications_row in Notifications_rows:
         # Use column dictionaries as easy identifiers
         row_dict = dict(zip(Notifications_columns, Notifications_row))
         # Make sure the current time is past the grace period for the notification before adding to the list
         notification_timestamp = datetime.datetime.strptime(row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
         if datetime.datetime.now() > notification_timestamp + notification_grace_period:
-            notified_patient_IDs.append(row_dict["patient_ID"])
+            exempt_patient_IDs.append(row_dict["patient_ID"])
 
     # Send notification one at a time to each patient, using column dictionaries as easy identifiers
     for Patients_row in Patients_rows:
         row_dict = dict(zip(Patients_columns, Patients_row))
-        if row_dict["patient_ID"] not in notified_patient_IDs:
+        if row_dict["patient_ID"] not in exempt_patient_IDs:
             send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
 
 
@@ -123,7 +113,7 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
 
     # If the flag ID is invalid, it needs to be checked from the start to debug, instead of sending an invalid request
     else:
-        print("Something went wrong and flag_id is invalid. Please check and try again.")
+        print("LOGGER - LOG invalid flag_id. Internal error.")
 
 
 def get_json_headers():
