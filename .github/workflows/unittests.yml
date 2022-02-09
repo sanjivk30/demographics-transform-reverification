@@ -10,9 +10,6 @@ jobs:
   run-unit-tests:
     name: Run unit tests
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        function-name: ['nhs_reverification_hello_world', 'nhs_reverification_notify']
     steps:
       - name: Check-out repository
         uses: actions/checkout@v2
@@ -21,10 +18,12 @@ jobs:
         with:
           python-version: "3.8"
           cache: "pip"
-      - name: Run tests associated with ${{ matrix.function-name }} function
+      - name: Install pytest
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          cd ./${{ matrix.function-name }}/unit_tests
-          pip install -t ./package -r ./requirements.txt
-          pytest *.py
+      - name: Run 'nhs_reverification_hello_world' test
+        run: |
+          cd ./nhs_reverification_hello_world/unit_tests
+          pip install -t ./nhs_reverification_hello_world/unit_tests/package -r ./nhs_reverification_hello_world/unit_tests/requirements.txt
+          pytest ./nhs_reverification_hello_world/unit_tests/*.py
