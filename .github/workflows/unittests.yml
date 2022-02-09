@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        function-name: ['nhs_reverification_hello_world']
+        function-name: ['nhs_reverification_hello_world', 'nhs_reverification_notify']
     steps:
       - name: Check-out repository
         uses: actions/checkout@v2
