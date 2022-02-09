@@ -24,6 +24,5 @@ jobs:
           pip install pytest
       - name: Run 'nhs_reverification_hello_world' test
         run: |
-          cd ./nhs_reverification_hello_world/unit_tests
           pip install -t ./nhs_reverification_hello_world/unit_tests/package -r ./nhs_reverification_hello_world/unit_tests/requirements.txt
           pytest ./nhs_reverification_hello_world/unit_tests/*.py
