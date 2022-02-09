@@ -28,9 +28,3 @@ jobs:
           pytest ./${{env.function_name}}/unit_tests/*.py
         env:
           function_name: nhs_reverification_hello_world
-      - name: Run 'nhs_reverification_notify' tests
-        run: |
-          pip install -t ./${{env.function_name}}/unit_tests/package -r ./${{env.function_name}}/unit_tests/requirements.txt
-          pytest ./${{env.function_name}}/unit_tests/*.py
-        env:
-          function_name: nhs_reverification_notify
