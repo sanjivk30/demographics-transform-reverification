@@ -35,33 +35,46 @@ db_connection = pymysql.connect(host=db_endpoint, user=db_username, password=db_
 
 def lambda_handler(event, context):
     # Make MySQL request to fetch all rows from Patients table with required columns
-    Patients_cursor = db_connection.cursor()
-    Patients_cursor.execute("SELECT patient_ID, first_name, family_name, mobilePhone, emailAddress, flag_ID FROM Patients")
-    Patients_rows = Patients_cursor.fetchall()
-    # Get column headers for dictionary use
-    Patients_columns = [column[0] for column in Patients_cursor.description]
+    Patients_columns, Patients_rows = get_all_rows("Patients", "patient_ID", "first_name", "family_name", "mobilePhone", "emailAddress", "flag_ID")
 
     # Make MySQL request to fetch all rows from Notifications table with required columns
-    Notifications_cursor = db_connection.cursor()
-    Notifications_cursor.execute("SELECT notification_ID, patient_ID, notification_status, time_stamp FROM Notifications")
-    Notifications_rows = Notifications_cursor.fetchall()
-    # Get column headers for dictionary use
-    Notifications_columns = [column[0] for column in Notifications_cursor.description]
+    Notifications_columns, Notifications_rows = get_all_rows("Notifications", "notification_ID", "patient_ID", "notification_status", "time_stamp")
+
     # Make a list of patient_IDs from the Notifications table that shouldn't be notified
-    exempt_patient_IDs = []
-    for Notifications_row in Notifications_rows:
-        # Use column dictionaries as easy identifiers
-        row_dict = dict(zip(Notifications_columns, Notifications_row))
-        # Make sure the current time is past the grace period for the notification before adding to the list
-        notification_timestamp = datetime.datetime.strptime(row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
-        if datetime.datetime.now() > notification_timestamp + notification_grace_period:
-            exempt_patient_IDs.append(row_dict["patient_ID"])
+    exempt_patient_IDs = get_exempt_patient_IDs(Notifications_columns, Notifications_rows)
 
     # Send notification one at a time to each patient, using column dictionaries as easy identifiers
     for Patients_row in Patients_rows:
-        row_dict = dict(zip(Patients_columns, Patients_row))
-        if row_dict["patient_ID"] not in exempt_patient_IDs:
-            send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
+        patient_dict = dict(zip(Patients_columns, Patients_row))
+        if patient_dict["patient_ID"] not in exempt_patient_IDs:
+            send_notification(patient_dict["patient_ID"], patient_dict["first_name"], patient_dict["family_name"],
+            patient_dict["mobilePhone"], patient_dict["emailAddress"], patient_dict["flag_ID"])
+
+
+def get_all_rows(table_name, *args):
+    cursor = db_connection.cursor()
+    cursor.execute(f"SELECT {', '.join(args)} FROM {table_name}")
+    rows = cursor.fetchall()
+    # Get column headers for dictionary use
+    columns = [column[0] for column in cursor.description]
+
+    return columns, rows
+
+
+def get_exempt_patient_IDs(Notifications_columns, Notifications_rows):
+    exempt_patient_IDs = []
+    for Notifications_row in Notifications_rows:
+        # Use column dictionaries as easy identifiers
+        patient_row_dict = dict(zip(Notifications_columns, Notifications_row))
+        # Make sure the current time is past the grace period for the notification before adding to the list
+        notification_timestamp = datetime.datetime.strptime(patient_row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
+        datetime_now = datetime.datetime.now()
+        grace_end_datetime = notification_timestamp + notification_grace_period
+        if datetime_now < grace_end_datetime:  # ----------------------------------Requires unit testing--------------------------------------------
+            print(f"Patient {patient_row_dict['patient_ID']} is exempt. Notification sent: {patient_row_dict['time_stamp']}")
+            exempt_patient_IDs.append(patient_row_dict["patient_ID"])
+    
+    return exempt_patient_IDs
 
 
 def send_notification(patient_ID, first_name, last_name, mobile_num, email_address, flag_id):
