@@ -1,9 +1,8 @@
+from re import I
 import requests, time, json, jwt, pymysql, datetime
 
-# Gov.UK Notify API URL and extensions
+# Gov.UK Notify API URL
 api_base_url = 'https://api.notifications.service.gov.uk'
-sms_extension = '/v2/notifications/sms'
-email_extension = '/v2/notifications/email'
 # API Key follows the format {key_name}-{iss}-{secret_key}
 # key_name = 'nhs_reverification_service'  # Not needed
 iss = '7ebefa63-8038-44d5-aca9-650a1e803f8f'
@@ -35,17 +34,17 @@ db_connection = pymysql.connect(host=db_endpoint, user=db_username, password=db_
 
 def lambda_handler(event, context):
     # Make MySQL request to fetch all rows from Patients table with required columns
-    Patients_columns, Patients_rows = get_all_rows("Patients", "patient_ID", "first_name", "family_name", "mobilePhone", "emailAddress", "flag_ID")
+    patients_columns, patients_rows = get_all_rows("Patients", "patient_ID", "first_name", "family_name", "mobilePhone", "emailAddress", "flag_ID")
 
     # Make MySQL request to fetch all rows from Notifications table with required columns
-    Notifications_columns, Notifications_rows = get_all_rows("Notifications", "notification_ID", "patient_ID", "notification_status", "time_stamp")
+    notifications_columns, notifications_rows = get_all_rows("Notifications", "notification_ID", "patient_ID", "notification_status", "time_stamp")
 
     # Make a list of patient_IDs from the Notifications table that shouldn't be notified
-    exempt_patient_IDs = get_exempt_patient_IDs(Notifications_columns, Notifications_rows)
+    exempt_patient_IDs = get_exempt_patient_IDs(notifications_columns, notifications_rows)
 
     # Send notification one at a time to each patient, using column dictionaries as easy identifiers
-    for Patients_row in Patients_rows:
-        patient_dict = dict(zip(Patients_columns, Patients_row))
+    for patients_row in patients_rows:
+        patient_dict = dict(zip(patients_columns, patients_row))
         if patient_dict["patient_ID"] not in exempt_patient_IDs:
             send_notification(patient_dict["patient_ID"], patient_dict["first_name"], patient_dict["family_name"],
             patient_dict["mobilePhone"], patient_dict["emailAddress"], patient_dict["flag_ID"])
@@ -61,11 +60,11 @@ def get_all_rows(table_name, *args):
     return columns, rows
 
 
-def get_exempt_patient_IDs(Notifications_columns, Notifications_rows):
+def get_exempt_patient_IDs(notifications_columns, notifications_rows):
     exempt_patient_IDs = []
-    for Notifications_row in Notifications_rows:
+    for notifications_row in notifications_rows:
         # Use column dictionaries as easy identifiers
-        patient_row_dict = dict(zip(Notifications_columns, Notifications_row))
+        patient_row_dict = dict(zip(notifications_columns, notifications_row))
         # Make sure the current time is past the grace period for the notification before adding to the list
         notification_timestamp = datetime.datetime.strptime(patient_row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
         datetime_now = datetime.datetime.now()
@@ -85,7 +84,7 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
 
 
     # JSON specific headers set-up
-    headers = get_json_headers()
+    headers = get_json_headers(iss, time.time(), secret_key)
 
     # Personalisation changes variables within created templates
     personalisation = {
@@ -97,42 +96,49 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
     body = get_json_body(flag_id, template, personalisation, mobile_num, email_address)
 
     # Decide on the message type being email or sms, based on the flag ID
-    msgType = ""
-    if flag_id == 0 or flag_id == 2:
-        msgType = sms_extension
-    elif flag_id == 1 or flag_id == 3:
-        msgType = email_extension
+    msg_ext = get_message_extension(flag_id)
 
     # Make sure a message type has been decided, then POST the request to the Gov.UK Notify API and print the response
-    if len(msgType) > 0:
-        send_attempts = 0
-        response_code = 500
-        while response_code == 500 and send_attempts < max_send_attempts:
-            response = requests.post(api_base_url + msgType, data=json.dumps(body), headers=headers)
-            print(response.content)
-            response_dict = json.loads(response.content)
-            response_code = response.status_code
-            send_attempts += 1
+    if msg_ext is not None and len(msg_ext) > 0:
+        notify_api = api_base_url + msg_ext
+        data = json.dumps(body)
+        notificationID = get_notification_id(notify_api, data, headers, 0, max_send_attempts)
 
         # Update Notifications table if request is successful
-        if response_code == 201:
-            notificationID = response_dict['id']
-            notifyStatus = "created"
-            notifyTimestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp)
-        else:
-            print("LOGGER - LOG response_code and response.content:")
-            print(f"status_code: {response_code}\nMessage: {response.content}")
+        if notificationID != None:
+            notify_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            update_notifications_table(patient_ID, notificationID, "created", notify_timestamp)
 
     # If the flag ID is invalid, it needs to be checked from the start to debug, instead of sending an invalid request
     else:
         print("LOGGER - LOG invalid flag_id. Internal error.")
 
 
-def get_json_headers():
+def get_notification_id(notify_api, data, headers, send_attempts, max_attempts):
+    if send_attempts > max_attempts:
+        print(f"Max attempts reached for payload: {data}")
+        return None
+    response = requests.post(notify_api, data=data, headers=headers)
+    print(f"API Response: {response.content}")
+    if response.status_code == 201:
+        return json.loads(response.content).get('id', None)
+    print(f"Error for payload: '{data}'. Response code: '{response.status_code}'")
+    return get_notification_id(notify_api, data, headers, send_attempts + 1, max_attempts)
+
+
+def get_message_extension(flag_id):
+    if flag_id == 0 or flag_id == 2:
+        return '/v2/notifications/sms'
+    elif flag_id == 1 or flag_id == 3:
+        return '/v2/notifications/email'
+    else:
+        return None
+
+
+def get_json_headers(iss, time_point, secret_key):
     payload = {
         'iss': iss,
-        'iat': time.time()
+        'iat': time_point
     }
     # JSON Web Token Encoding
     auth = jwt.encode(payload, secret_key, algorithm='HS256')
@@ -178,10 +184,10 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
     return body
 
 
-def update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp):
+def update_notifications_table(patient_ID, notificationID, notify_status, notify_timestamp):
     cursor = db_connection.cursor()
     insert_sql = "INSERT INTO Notifications (notification_ID, patient_ID, notification_status, time_stamp) VALUES (%s, %s, %s, %s)"
-    insert_values = (notificationID, patient_ID, notifyStatus, notifyTimestamp)
+    insert_values = (notificationID, patient_ID, notify_status, notify_timestamp)
     cursor.execute(insert_sql, insert_values)
     db_connection.commit()
 
