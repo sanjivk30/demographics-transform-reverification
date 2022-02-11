@@ -21,6 +21,8 @@ sms_sender_id = "9792f0d6-6cd5-4c3b-b1c1-2c75c7c8e1c2"
 
 # Maximum number of notification sending attempts in case of failure
 max_send_attempts = 3
+# Set the minimum grace period wait time between sent notifications to the same patient
+notification_grace_period = datetime.timedelta(days=7)
 
 # Database config values
 db_endpoint = "cohort-test.c8qpdaxefdlf.us-east-1.rds.amazonaws.com"
@@ -32,27 +34,47 @@ db_name = "cohort_db"
 db_connection = pymysql.connect(host=db_endpoint, user=db_username, password=db_password, database=db_name)
 
 def lambda_handler(event, context):
-    # MySQL testing - pretty print all rows in table
-    cursor = db_connection.cursor()
-    cursor.execute("SELECT * FROM Patients")
-    rows = cursor.fetchall()
-    s = [[str(e) for e in row] for row in rows]
-    lens = [max(map(len, col)) for col in zip(*s)]
-    fmt = '\t'.join('{{:{}}}'.format(x) for x in lens)
-    table = [fmt.format(*row) for row in s]
-    print('\n'.join(table))
+    # Make MySQL request to fetch all rows from Patients table with required columns
+    Patients_columns, Patients_rows = get_all_rows("Patients", "patient_ID", "first_name", "family_name", "mobilePhone", "emailAddress", "flag_ID")
 
-    # Make MySQL request to fetch all rows with required columns
+    # Make MySQL request to fetch all rows from Notifications table with required columns
+    Notifications_columns, Notifications_rows = get_all_rows("Notifications", "notification_ID", "patient_ID", "notification_status", "time_stamp")
+
+    # Make a list of patient_IDs from the Notifications table that shouldn't be notified
+    exempt_patient_IDs = get_exempt_patient_IDs(Notifications_columns, Notifications_rows)
+
+    # Send notification one at a time to each patient, using column dictionaries as easy identifiers
+    for Patients_row in Patients_rows:
+        patient_dict = dict(zip(Patients_columns, Patients_row))
+        if patient_dict["patient_ID"] not in exempt_patient_IDs:
+            send_notification(patient_dict["patient_ID"], patient_dict["first_name"], patient_dict["family_name"],
+            patient_dict["mobilePhone"], patient_dict["emailAddress"], patient_dict["flag_ID"])
+
+
+def get_all_rows(table_name, *args):
     cursor = db_connection.cursor()
-    cursor.execute("SELECT patient_ID, first_name, family_name, mobilePhone, emailAddress, flag_ID FROM Patients")
+    cursor.execute(f"SELECT {', '.join(args)} FROM {table_name}")
     rows = cursor.fetchall()
     # Get column headers for dictionary use
     columns = [column[0] for column in cursor.description]
 
-    # Send notification one at a time to each patient, using column dictionaries as easy identifiers
-    for row in rows:
-        row_dict = dict(zip(columns, row))
-        send_notification(row_dict["patient_ID"], row_dict["first_name"], row_dict["family_name"], row_dict["mobilePhone"], row_dict["emailAddress"], row_dict["flag_ID"])
+    return columns, rows
+
+
+def get_exempt_patient_IDs(Notifications_columns, Notifications_rows):
+    exempt_patient_IDs = []
+    for Notifications_row in Notifications_rows:
+        # Use column dictionaries as easy identifiers
+        patient_row_dict = dict(zip(Notifications_columns, Notifications_row))
+        # Make sure the current time is past the grace period for the notification before adding to the list
+        notification_timestamp = datetime.datetime.strptime(patient_row_dict["time_stamp"], "%Y-%m-%d %H:%M:%S")
+        datetime_now = datetime.datetime.now()
+        grace_end_datetime = notification_timestamp + notification_grace_period
+        if datetime_now < grace_end_datetime:  # ----------------------------------Requires unit testing--------------------------------------------
+            print(f"Patient {patient_row_dict['patient_ID']} is exempt. Notification sent: {patient_row_dict['time_stamp']}")
+            exempt_patient_IDs.append(patient_row_dict["patient_ID"])
+    
+    return exempt_patient_IDs
 
 
 def send_notification(patient_ID, first_name, last_name, mobile_num, email_address, flag_id):
@@ -68,7 +90,7 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
     # Personalisation changes variables within created templates
     personalisation = {
         "first_name": first_name,
-        "Family_name": last_name,
+        "last_name": last_name,
     }
 
     # JSON body set-up using given information
@@ -104,7 +126,7 @@ def send_notification(patient_ID, first_name, last_name, mobile_num, email_addre
 
     # If the flag ID is invalid, it needs to be checked from the start to debug, instead of sending an invalid request
     else:
-        print("Something went wrong and flag_id is invalid. Please check and try again.")
+        print("LOGGER - LOG invalid flag_id. Internal error.")
 
 
 def get_json_headers():
@@ -136,7 +158,7 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
         body = {
         'email_address': email_address,
         'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS Record: Add your mobile number"}),
+        'personalisation': personalisation,
         # "email_reply_to_id": email_reply_to_id
         }
     elif flag_id == 2:
@@ -150,7 +172,7 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
         body = {
         'email_address': email_address,
         'template_id': template,
-        'personalisation': personalisation.update({"subject": "NHS: Check your mobile number"}),
+        'personalisation': personalisation,
         # "email_reply_to_id": email_reply_to_id
         }
     return body
@@ -158,8 +180,10 @@ def get_json_body(flag_id, template, personalisation, mobile_num, email_address)
 
 def update_notifications_table(patient_ID, notificationID, notifyStatus, notifyTimestamp):
     cursor = db_connection.cursor()
-    cursor.execute(f"""INSERT INTO Notifications (notification_ID, patient_ID, notification_status, time_stamp) VALUES
-                       ('{notificationID}', {patient_ID}, '{notifyStatus}', '{notifyTimestamp}')""")
+    insert_sql = "INSERT INTO Notifications (notification_ID, patient_ID, notification_status, time_stamp) VALUES (%s, %s, %s, %s)"
+    insert_values = (notificationID, patient_ID, notifyStatus, notifyTimestamp)
+    cursor.execute(insert_sql, insert_values)
+    db_connection.commit()
 
 
 
